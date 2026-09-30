@@ -118,6 +118,9 @@ final class InstallFlow: ObservableObject {
                 env.library.markInstalled(item.id, deleteIPA: env.settings.deleteIPAAfterInstall)
                 env.banner = Banner(title: "Запрос на установку отправлен",
                                     subtitle: "Подтвердите установку в системном окне iOS", kind: .info)
+            case .installed:
+                env.library.markInstalled(item.id, deleteIPA: env.settings.deleteIPAAfterInstall)
+                env.banner = Banner(title: "Приложение установлено", subtitle: item.name, kind: .success)
             }
         } catch {
             self.error = UserFacingError.wrap(error)

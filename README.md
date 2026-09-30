@@ -55,7 +55,7 @@ UI не знает, как именно подписывается и стави
 
 1. **Через «Поделиться»** (по умолчанию, работает всегда) — подписанный IPA отдаётся в SideStore, TrollStore и т. п.
 2. **OTA (itms-services)** — штатный механизм Apple. Приложение поднимает HTTPS-сервер на 127.0.0.1 и открывает `itms-services://`. iOS требует доверенный TLS, поэтому нужен свой домен с A-записью на `127.0.0.1` и сертификат для него (например, Let's Encrypt), импортированный как .p12 в «Настройки → Установка». Без этого приложение честно говорит, что способ не настроен.
-3. **Напрямую через туннель** — pairing-файл + LocalDevVPN/StosVPN. Импорт pairing-файла и реальная проверка TCP-соединения работают. Сама загрузка IPA через AFC + installation_proxy требует библиотеки [idevice](https://github.com/jkcoxson/idevice) (Rust, собирается cargo под iOS) — она не вложена. Пока её нет, кнопка объясняет это и предлагает способ 1. Точка подключения — `TunnelInstaller.install` (`#if canImport(IDevice)`).
+3. **Напрямую через туннель** — pairing-файл + LocalDevVPN/StosVPN. Импорт pairing-файла и реальная проверка TCP-соединения работают. Установка: IPA загружается через AFC в `/PublicStaging` и ставится через installation_proxy с помощью [idevice](https://github.com/jkcoxson/idevice) (Rust, MIT). CI собирает его из закреплённого коммита под `aarch64-apple-ios` в `deps/idevice` (см. `.github/workflows/build.yml`); код — `Core/Installation/IDeviceInstall.swift`.
 
 **SideStore.** Используется официальная схема из SideStore 0.6.2+ (PR SideStore#959): `sidestore://certificate?callback_template=…`, SideStore спрашивает разрешение и возвращает `orbit://sidestore-certificate?cert=…&password=…`. SideStore отдаёт только сертификат, поэтому после возврата приложение просит выбрать .mobileprovision (или берёт уже импортированный подходящий). Если SideStore не установлен — показывается ручной путь через файлы / «Открыть в…».
 
@@ -67,4 +67,4 @@ UI не знает, как именно подписывается и стави
 
 Orbit распространяется под **GNU AGPL-3.0** (см. `LICENSE`): он использует SideSign (GPL-3.0) и его зависимости AnisetteKit, GSACryptoKit, CodeSignKit (AGPL-3.0).
 
-Прочие компоненты: zsign — MIT, ZIPFoundation — MIT, OpenSSL — Apache 2.0, zlib/minizip — zlib License, swift-crypto — Apache 2.0, libdeflate — MIT, Unicorn Engine — GPL-2.0. Список виден в «Настройки → Разработчик → Лицензии».
+Прочие компоненты: idevice — MIT, zsign — MIT, ZIPFoundation — MIT, OpenSSL — Apache 2.0, zlib/minizip — zlib License, swift-crypto — Apache 2.0, libdeflate — MIT, Unicorn Engine — GPL-2.0. Список виден в «Настройки → Разработчик → Лицензии».

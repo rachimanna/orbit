@@ -57,6 +57,7 @@ struct LicensesView: View {
         ("OpenSSL", "Apache 2.0", "https://github.com/openssl/openssl"),
         ("zlib", "zlib License", "https://zlib.net"),
         ("minizip", "zlib License", "https://github.com/madler/zlib/tree/master/contrib/minizip"),
+        ("idevice", "MIT", "https://github.com/jkcoxson/idevice"),
         ("SideSign", "GPL-3.0", "https://github.com/SideStore/SideSign"),
         ("AnisetteKit", "AGPL-3.0", "https://github.com/mahee96/AnisetteKit"),
         ("GSACryptoKit", "AGPL-3.0", "https://github.com/mahee96/GSACryptoKit"),

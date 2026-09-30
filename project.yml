@@ -56,6 +56,10 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: Orbit/Core/Signing/Orbit-Bridging-Header.h
         CLANG_CXX_LANGUAGE_STANDARD: c++17
         TARGETED_DEVICE_FAMILY: "1,2"
+        # idevice (Rust, MIT) is built by CI into deps/idevice — see .github/workflows/build.yml.
+        SWIFT_INCLUDE_PATHS: $(SRCROOT)/deps/idevice/include
+        LIBRARY_SEARCH_PATHS: $(inherited) $(SRCROOT)/deps/idevice/lib
+        OTHER_LDFLAGS: $(inherited) -lidevice_ffi
       configs:
         Debug:
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG

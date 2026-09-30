@@ -10,6 +10,8 @@ final class InstallCoordinator: ObservableObject {
         case presentShareSheet(URL)
         /// iOS accepted the install request and shows its own confirmation alert.
         case handedToSystem
+        /// installation_proxy reported the app as installed (direct install via tunnel).
+        case installed
     }
 
     private let settings: SettingsStore
@@ -34,7 +36,7 @@ final class InstallCoordinator: ObservableObject {
             try await tunnel.install(ipa: signedIPA,
                                      host: settings.deviceHost, port: settings.devicePort,
                                      timeout: settings.connectionTimeout)
-            return .handedToSystem
+            return .installed
         }
     }
 }

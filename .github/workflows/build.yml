@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+env:
+  IDEVICE_REV: d32c8189c51c2789496b0768039419c3705498c3
+  IDEVICE_FEATURES: ring,tcp,afc,installation_proxy
+
 jobs:
   build:
     runs-on: macos-15
@@ -21,6 +25,34 @@ jobs:
 
       - name: Show toolchain
         run: xcodebuild -version
+
+      # idevice (MIT, github.com/jkcoxson/idevice): direct install over the VPN tunnel.
+      # Built from a pinned commit into deps/idevice/{include,lib}, which project.yml links.
+      - name: Cache idevice build
+        id: idevice-cache
+        uses: actions/cache@v4
+        with:
+          path: deps/idevice
+          key: idevice-${{ env.IDEVICE_REV }}-${{ env.IDEVICE_FEATURES }}-ios16-v1
+
+      - name: Build idevice for iOS
+        if: steps.idevice-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-apple-ios
+          mkdir -p "$RUNNER_TEMP/idevice" && cd "$RUNNER_TEMP/idevice"
+          git init -q && git remote add origin https://github.com/jkcoxson/idevice
+          git fetch -q --depth 1 origin "$IDEVICE_REV" && git checkout -q FETCH_HEAD
+          cd ffi
+          BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$(xcrun --sdk iphoneos --show-sdk-path)" \
+          IPHONEOS_DEPLOYMENT_TARGET=16.0 \
+            cargo build --release --target aarch64-apple-ios --no-default-features --features "$IDEVICE_FEATURES"
+          dest="$GITHUB_WORKSPACE/deps/idevice"
+          mkdir -p "$dest/include" "$dest/lib"
+          cp idevice.h "$dest/include/"
+          cp ../target/aarch64-apple-ios/release/libidevice_ffi.a "$dest/lib/"
+          printf 'module IDevice {\n  header "idevice.h"\n  export *\n}\n' > "$dest/include/module.modulemap"
+          ls -la "$dest/lib"
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -44,11 +76,13 @@ jobs:
             exit $status
           fi
 
-      - name: Verify zsign is compiled in
+      - name: Verify zsign and idevice are compiled in
         run: |
           BIN=build/Build/Products/Release-iphoneos/Orbit.app/Orbit
           nm "$BIN" | grep -q "ZBundle" || { echo "::error::zsign symbols missing from binary"; exit 1; }
           echo "zsign linked OK"
+          nm "$BIN" | grep -q "installation_proxy_install" || { echo "::error::idevice symbols missing from binary"; exit 1; }
+          echo "idevice linked OK"
 
       - name: Package IPA
         run: |

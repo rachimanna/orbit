@@ -124,7 +124,7 @@ final class TunnelInstaller: ObservableObject {
                                   hint: "Туннель работает, но модуль idevice не подключён. Выберите способ «Через „Поделиться“» — подписанный IPA можно установить через SideStore.")
         }
         #if canImport(IDevice)
-        try await IDeviceInstall.install(ipa: ipa, pairingFile: pairingURL, host: host)
+        try await IDeviceInstall.install(ipa: ipa, pairingFile: pairingURL, host: host, port: port)
         #endif
     }
 }
