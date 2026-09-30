@@ -18,6 +18,12 @@ NS_ASSUME_NONNULL_BEGIN
           displayName:(nullable NSString *)displayName
                 error:(NSError **)error;
 
+/// Re-packs a .p12 into the classic 3DES/SHA-1 layout that SecPKCS12Import and zsign
+/// accept, protected with the same password. Error code 1 = wrong password.
++ (nullable NSData *)normalizedP12:(NSData *)data
+                          password:(NSString *)password
+                             error:(NSError **)error;
+
 @end
 
 NS_ASSUME_NONNULL_END

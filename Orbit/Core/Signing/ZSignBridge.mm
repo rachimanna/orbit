@@ -1,4 +1,5 @@
 #import "ZSignBridge.h"
+#include "P12Normalizer.h"
 
 #if __has_include("bundle.h") && __has_include(<openssl/pem.h>)
 #define ORBIT_HAS_ZSIGN 1
@@ -68,6 +69,25 @@ static NSString *const ZSignErrorDomain = @"ZSignBridge";
                                         userInfo:@{NSLocalizedDescriptionKey: @"zsign is not compiled into this build"}];
     return NO;
 #endif
+}
+
++ (NSData *)normalizedP12:(NSData *)data password:(NSString *)password error:(NSError **)error
+{
+    uint8_t *out = NULL;
+    size_t length = 0;
+    OrbitP12Status status = orbit_p12_normalize((const uint8_t *)data.bytes, data.length,
+                                                password.UTF8String, &out, &length);
+    if (status == ORBIT_P12_OK) {
+        return [NSData dataWithBytesNoCopy:out length:length freeWhenDone:YES];
+    }
+    if (error) {
+        NSString *message = status == ORBIT_P12_WRONG_PASSWORD ? @"Wrong .p12 password"
+                          : status == ORBIT_P12_UNAVAILABLE ? @"OpenSSL is not compiled into this build"
+                          : @"Not a readable PKCS#12 file";
+        *error = [NSError errorWithDomain:ZSignErrorDomain code:status
+                                 userInfo:@{NSLocalizedDescriptionKey: message}];
+    }
+    return nil;
 }
 
 @end

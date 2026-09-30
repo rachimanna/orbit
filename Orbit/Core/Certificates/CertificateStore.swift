@@ -66,9 +66,9 @@ final class CertificateStore: ObservableObject {
     }
 
     @discardableResult
-    private func add(p12Data: Data, profileData: Data, password: String,
+    private func add(p12Data rawP12: Data, profileData: Data, password: String,
                      source: SigningCertificate.Source) throws -> SigningCertificate {
-        let info = try P12Reader.read(p12Data, password: password)
+        let (p12Data, info) = try P12Reader.prepare(rawP12, password: password)
         let parsed = try ProvisioningProfileParser.parse(profileData)
 
         if !parsed.developerCertificates.isEmpty,

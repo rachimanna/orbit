@@ -25,8 +25,7 @@ final class OTAServer {
     static func importIdentity(from url: URL, password: String) throws {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        let data = try Data(contentsOf: url)
-        _ = try P12Reader.read(data, password: password)   // validates password
+        let (data, _) = try P12Reader.prepare(Data(contentsOf: url), password: password)   // validates password
         try data.write(to: identityURL, options: .completeFileProtection)
         UserDefaults.standard.set(password, forKey: "otaIdentityPassword")
     }

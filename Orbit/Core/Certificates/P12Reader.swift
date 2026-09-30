@@ -10,6 +10,30 @@ enum P12Reader {
         var notAfter: Date?
     }
 
+    /// Returns .p12 data that both iOS and zsign can open with `password`, plus its info.
+    ///
+    /// Files iOS already accepts are kept byte-for-byte. Others are re-packed by OpenSSL:
+    /// SideStore's certificate export, for one, has no MAC and an unencrypted key bag,
+    /// which SecPKCS12Import rejects as if the password were wrong; OpenSSL 3's default
+    /// PBES2/AES output is rejected by some iOS versions too.
+    static func prepare(_ data: Data, password: String) throws -> (data: Data, info: Info) {
+        let systemError: Error
+        do {
+            return (data, try read(data, password: password))
+        } catch {
+            systemError = error
+        }
+        let repacked: Data
+        do {
+            repacked = try ZSignBridge.normalizedP12(data, password: password)
+        } catch {
+            // OpenSSL could not open it either: report what iOS said (wrong password / invalid).
+            if (error as NSError).code == 1 { throw UserFacingError.wrongPassword }
+            throw systemError
+        }
+        return (repacked, try read(repacked, password: password))
+    }
+
     static func read(_ data: Data, password: String) throws -> Info {
         let options = [kSecImportExportPassphrase as String: password] as CFDictionary
         var items: CFArray?

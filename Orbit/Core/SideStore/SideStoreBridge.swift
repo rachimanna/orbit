@@ -64,8 +64,10 @@ final class SideStoreBridge {
         if let d = Data(base64Encoded: raw), let s = String(data: d, encoding: .utf8) { candidates.append(s) }
         candidates.append("")
 
-        for candidate in candidates where (try? P12Reader.read(p12, password: candidate)) != nil {
-            return Payload(p12: p12, password: candidate, profile: nil)
+        for candidate in candidates {
+            if let prepared = try? P12Reader.prepare(p12, password: candidate) {
+                return Payload(p12: prepared.data, password: candidate, profile: nil)
+            }
         }
         throw UserFacingError.wrongPassword
     }
