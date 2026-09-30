@@ -39,7 +39,9 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Re-evaluated every minute, so the greeting follows the clock while the app stays open.
                 TimelineView(.everyMinute) { context in
-                    Text(Self.greeting(at: context.date)).font(.title3.weight(.semibold))
+                    Text("Ассаламу алейкум, \(Self.greeting(at: context.date).lowercased())")
+                        .font(.title3.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Text(Brand.tagline).font(.subheadline).foregroundStyle(.secondary)
             }
