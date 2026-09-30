@@ -30,13 +30,19 @@ jobs:
 
       - name: Build (unsigned)
         run: |
-          set -o pipefail
+          set +e
           xcodebuild -project Orbit.xcodeproj -scheme Orbit -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build | tee xcodebuild.log | grep -E "error:|warning: .*zsign|BUILD (SUCCEEDED|FAILED)" || true
-          test "${PIPESTATUS[0]}" -eq 0 || { grep -E "error:" -A3 xcodebuild.log | head -200; exit 1; }
+            build > xcodebuild.log 2>&1
+          status=$?
+          tail -n 30 xcodebuild.log
+          if [ $status -ne 0 ]; then
+            echo "===== errors ====="
+            grep -E "error:" -B2 -A4 xcodebuild.log | head -n 400
+            exit $status
+          fi
 
       - name: Verify zsign is compiled in
         run: |
