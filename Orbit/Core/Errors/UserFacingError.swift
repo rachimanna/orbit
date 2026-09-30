@@ -49,6 +49,15 @@ struct UserFacingError: LocalizedError, Identifiable {
     static let installUnavailable = Self(
         title: "Установка не началась",
         hint: "Выбранный способ установки недоступен. Откройте «Настройки → Установка» и выберите другой.")
+    static let appleIDSignedOut = Self(
+        title: "Вход в Apple ID не выполнен",
+        hint: "Войдите в Apple ID в «Настройки → Apple ID» — профили выдаются через него.")
+    static let udidMissing = Self(
+        title: "Неизвестен UDID устройства",
+        hint: "Apple выдаёт профиль только для зарегистрированного устройства. Получите pairing-файл из SideStore в «Настройки → Подключение» — в нём есть UDID.")
+    static let anisetteServerInvalid = Self(
+        title: "Неверный адрес anisette-сервера",
+        hint: "Укажите адрес целиком, например \(AppleAccountService.defaultAnisetteServer).")
     static let connectionFailed = Self(
         title: "Нет подключения к устройству",
         hint: "Включите VPN-туннель (например, LocalDevVPN) и проверьте IP-адрес и порт в «Настройки → Подключение».")

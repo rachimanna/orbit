@@ -22,7 +22,7 @@ final class CertificateStore: ObservableObject {
     var selected: SigningCertificate? { certificates.first { $0.id == selectedID } }
 
     func p12URL(_ c: SigningCertificate) -> URL { files.absolute(c.p12Path) }
-    func profileURL(_ c: SigningCertificate) -> URL { files.absolute(c.profilePath) }
+    func profileURL(_ c: SigningCertificate) -> URL? { c.profilePath.map(files.absolute) }
     func password(_ c: SigningCertificate) -> String { Keychain.password(for: c.id) }
 
     // MARK: Import
@@ -35,16 +35,21 @@ final class CertificateStore: ObservableObject {
     }
 
     /// Import from the SideStore callback. SideStore only exports the certificate, so the
-    /// profile has to come from the user (or already be imported and matching).
-    func importFromSideStore(_ payload: SideStoreBridge.Payload) async throws {
+    /// profile comes from the signed-in Apple ID, the user, or an already imported match.
+    func importFromSideStore(_ payload: SideStoreBridge.Payload, appleAccount: Bool) async throws {
+        if appleAccount {
+            _ = try add(p12Data: payload.p12, profileData: nil, password: payload.password, source: .sideStore)
+            return
+        }
         let info = try P12Reader.read(payload.p12, password: payload.password)
 
         // Reuse a stored profile that lists this certificate, if any.
         if let existing = certificates.first(where: {
-            (try? ProvisioningProfileParser.parse(Data(contentsOf: profileURL($0))))?
+            guard let url = profileURL($0) else { return false }
+            return (try? ProvisioningProfileParser.parse(Data(contentsOf: url)))?
                 .developerCertificates.contains(info.certificateDER) == true
-        }) {
-            let profileData = try Data(contentsOf: profileURL(existing))
+        }), let url = profileURL(existing) {
+            let profileData = try Data(contentsOf: url)
             _ = try add(p12Data: payload.p12, profileData: profileData, password: payload.password, source: .sideStore)
             return
         }
@@ -59,41 +64,47 @@ final class CertificateStore: ObservableObject {
     }
     @Published var pendingSideStoreP12: SideStoreBridge.Payload?
 
-    func completeSideStoreImport(profile: URL) throws {
+    /// `profile == nil`: profiles will be fetched through the Apple ID for each app.
+    func completeSideStoreImport(profile: URL?) throws {
         guard let payload = pendingSideStoreP12 else { return }
-        _ = try add(p12Data: payload.p12, profileData: try read(profile), password: payload.password, source: .sideStore)
+        _ = try add(p12Data: payload.p12, profileData: try profile.map(read), password: payload.password, source: .sideStore)
         pendingSideStoreP12 = nil
     }
 
     @discardableResult
-    private func add(p12Data rawP12: Data, profileData: Data, password: String,
+    private func add(p12Data rawP12: Data, profileData: Data?, password: String,
                      source: SigningCertificate.Source) throws -> SigningCertificate {
         let (p12Data, info) = try P12Reader.prepare(rawP12, password: password)
-        let parsed = try ProvisioningProfileParser.parse(profileData)
+        let parsed = try profileData.map(ProvisioningProfileParser.parse)
 
-        if !parsed.developerCertificates.isEmpty,
+        if let parsed, !parsed.developerCertificates.isEmpty,
            !parsed.developerCertificates.contains(info.certificateDER) {
             throw UserFacingError.profileMismatch
         }
 
         // Replace an older copy of the same cert + profile.
-        if let dup = certificates.first(where: { $0.profile.uuid == parsed.profile.uuid && $0.displayName == info.commonName }) {
+        if let dup = certificates.first(where: { $0.profile?.uuid == parsed?.profile.uuid && $0.displayName == info.commonName }) {
             delete(dup)
         }
 
         let id = UUID()
         let folder = files.certificateFolder(id)
         let p12URL = folder.appendingPathComponent("certificate.p12")
-        let profURL = folder.appendingPathComponent("profile.mobileprovision")
         try p12Data.write(to: p12URL, options: .completeFileProtection)
-        try profileData.write(to: profURL, options: .completeFileProtection)
+        var profilePath: String?
+        if let profileData {
+            let profURL = folder.appendingPathComponent("profile.mobileprovision")
+            try profileData.write(to: profURL, options: .completeFileProtection)
+            profilePath = files.relative(profURL)
+        }
         Keychain.setPassword(password, for: id)
 
+        let teamID = parsed?.profile.teamID ?? info.teamID ?? ""
         let cert = SigningCertificate(
-            id: id, displayName: info.commonName, teamID: parsed.profile.teamID,
-            teamName: parsed.profile.teamName, certificateExpiresAt: info.notAfter,
-            profile: parsed.profile, source: source, addedAt: Date(),
-            p12Path: files.relative(p12URL), profilePath: files.relative(profURL))
+            id: id, displayName: info.commonName, teamID: teamID,
+            teamName: parsed?.profile.teamName ?? teamID, certificateExpiresAt: info.notAfter,
+            profile: parsed?.profile, source: source, addedAt: Date(),
+            p12Path: files.relative(p12URL), profilePath: profilePath)
         certificates.insert(cert, at: 0)
         if selected == nil { selectedID = id }
         persist()

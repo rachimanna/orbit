@@ -36,3 +36,31 @@ enum Keychain {
         SecItemDelete(q as CFDictionary)
     }
 }
+
+extension Keychain {
+    private static let accountService = (Bundle.main.bundleIdentifier ?? "orbit") + ".account"
+
+    /// Generic secret storage (Apple ID password, session tokens). `nil` deletes the item.
+    static func set(_ data: Data?, for key: String) {
+        let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                   kSecAttrService as String: accountService,
+                                   kSecAttrAccount as String: key]
+        SecItemDelete(base as CFDictionary)
+        guard let data else { return }
+        var add = base
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        SecItemAdd(add as CFDictionary, nil)
+    }
+
+    static func data(for key: String) -> Data? {
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                kSecAttrService as String: accountService,
+                                kSecAttrAccount as String: key,
+                                kSecReturnData as String: true,
+                                kSecMatchLimit as String: kSecMatchLimitOne]
+        var out: AnyObject?
+        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess else { return nil }
+        return out as? Data
+    }
+}

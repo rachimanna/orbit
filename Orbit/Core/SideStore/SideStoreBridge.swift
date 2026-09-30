@@ -41,6 +41,35 @@ final class SideStoreBridge {
         if !opened { throw UserFacingError.sideStoreMissing }
     }
 
+    // MARK: Pairing file (SideStore ≥ 0.6.2: sidestore://pairing?urlname=<our scheme>)
+    //
+    // SideStore answers with <scheme>://pairingFile?data=<base64 pairing plist>.
+
+    static let pairingCallbackHost = "pairingFile"
+
+    /// Opens SideStore's pairing-file export. Throws if SideStore isn't installed.
+    func requestPairingFile() async throws {
+        guard isSideStoreInstalled, let url = URL(string: "sidestore://pairing?urlname=\(Brand.urlScheme)") else {
+            throw UserFacingError.sideStoreMissing
+        }
+        if !(await UIApplication.shared.open(url)) { throw UserFacingError.sideStoreMissing }
+    }
+
+    func isPairingCallback(_ url: URL) -> Bool {
+        url.scheme == Brand.urlScheme && url.host == Self.pairingCallbackHost
+    }
+
+    func parsePairingCallback(_ url: URL) throws -> Data {
+        let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "data" }?.value?.replacingOccurrences(of: " ", with: "+")
+        guard let value, !value.contains("$("),
+              let data = Data(base64Encoded: value, options: .ignoreUnknownCharacters) else {
+            throw UserFacingError(title: "SideStore не передал pairing-файл",
+                                  hint: "Убедитесь, что в SideStore импортирован pairing-файл, и попробуйте снова.")
+        }
+        return data
+    }
+
     func isCallback(_ url: URL) -> Bool {
         url.scheme == Brand.urlScheme && url.host == Self.callbackHost
     }

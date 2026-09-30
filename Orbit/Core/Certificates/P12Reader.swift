@@ -8,6 +8,8 @@ enum P12Reader {
         var commonName: String
         var certificateDER: Data
         var notAfter: Date?
+        /// Subject OU — the Team ID in Apple-issued signing certificates.
+        var teamID: String?
     }
 
     /// Returns .p12 data that both iOS and zsign can open with `password`, plus its info.
@@ -61,7 +63,8 @@ enum P12Reader {
         let der = SecCertificateCopyData(cert) as Data
         return Info(commonName: (cn as String?) ?? "Сертификат",
                     certificateDER: der,
-                    notAfter: X509.notAfter(der))
+                    notAfter: X509.notAfter(der),
+                    teamID: X509.organizationalUnit(der))
     }
 }
 
@@ -83,6 +86,35 @@ enum X509 {
                let notBefore = tlv(bytes, t.contentStart),
                let notAfter = tlv(bytes, notBefore.end) {
                 return time(Array(bytes[notAfter.contentStart..<notAfter.end]), tag: notAfter.tag)
+            }
+            field += 1
+            p = t.end
+        }
+        return nil
+    }
+
+    /// Subject OU (2.5.4.11). Apple signing certificates keep the Team ID there.
+    static func organizationalUnit(_ der: Data) -> String? {
+        let bytes = [UInt8](der)
+        guard let cert = tlv(bytes, 0), cert.tag == 0x30,
+              let tbs = tlv(bytes, cert.contentStart), tbs.tag == 0x30 else { return nil }
+        var p = tbs.contentStart
+        var field = 0
+        while p < tbs.end, let t = tlv(bytes, p) {
+            if t.tag == 0xA0 { p = t.end; continue }
+            // serial(0), signature(1), issuer(2), validity(3), subject(4)
+            if field == 4, t.tag == 0x30 {
+                var q = t.contentStart
+                while q < t.end, let set = tlv(bytes, q) {            // SET OF AttributeTypeAndValue
+                    if let attr = tlv(bytes, set.contentStart), attr.tag == 0x30,
+                       let oid = tlv(bytes, attr.contentStart), oid.tag == 0x06,
+                       Array(bytes[oid.contentStart..<oid.end]) == [0x55, 0x04, 0x0B],
+                       let value = tlv(bytes, oid.end) {
+                        return String(decoding: bytes[value.contentStart..<value.end], as: UTF8.self)
+                    }
+                    q = set.end
+                }
+                return nil
             }
             field += 1
             p = t.end

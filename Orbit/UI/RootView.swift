@@ -5,6 +5,7 @@ enum RootTab: Hashable { case home, apps, certificates, settings }
 struct RootView: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var appleAccount: AppleAccountService
 
     var body: some View {
         TabView(selection: $env.selectedTab) {
@@ -33,6 +34,8 @@ struct RootView: View {
             }
         }
         .animation(settings.animation, value: env.banner)
+        // Apple may ask for a 2FA code during any sign-in or profile refresh.
+        .sheet(item: $appleAccount.codePrompt) { TwoFactorSheet(prompt: $0) }
         .preferredColorScheme(settings.appearance.colorScheme)
     }
 }

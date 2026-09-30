@@ -13,10 +13,27 @@ final class SigningFlow: ObservableObject {
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var done: Set<SigningStage> = []
     @Published private(set) var error: UserFacingError?
+    /// Stages this run goes through (provisioning only with Apple ID profiles).
+    @Published private(set) var stages = SigningStage.allCases.filter { $0 != .provisioning }
 
     func run(item: AppItem, env: AppEnvironment) async -> AppItem? {
         done = []; error = nil
         guard let cert = env.certificates.selected else { return fail(.noCertificate) }
+
+        let profile: ProfileSource
+        if let url = env.certificates.profileURL(cert) {
+            profile = .file(url)
+            stages = SigningStage.allCases.filter { $0 != .provisioning }
+        } else {
+            guard env.appleAccount.isSignedIn else { return fail(.appleIDSignedOut) }
+            let account = env.appleAccount
+            let udid = env.installer.tunnel.pairing?.udid
+            let name = item.name
+            profile = .appleAccount({ bundleID, extensions in
+                try await account.provision(bundleID: bundleID, appName: name, extensionBundleIDs: extensions, udid: udid)
+            })
+            stages = SigningStage.allCases
+        }
 
         let files = env.library.fileStore
         let request = SigningRequest(
@@ -26,7 +43,7 @@ final class SigningFlow: ObservableObject {
             certificate: cert,
             p12: env.certificates.p12URL(cert),
             password: env.certificates.password(cert),
-            profile: env.certificates.profileURL(cert),
+            profile: profile,
             output: files.appFolder(item.id).appendingPathComponent("signed.ipa"),
             workDir: files.workFolder(),
             cleanWorkDir: env.settings.cleanTempAfterSigning)

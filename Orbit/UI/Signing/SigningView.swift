@@ -6,6 +6,7 @@ struct SigningView: View {
     let item: AppItem
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var appleAccount: AppleAccountService
     @Environment(\.dismiss) private var dismiss
     @StateObject private var flow = SigningFlow()
     @StateObject private var install = InstallFlow()
@@ -29,6 +30,8 @@ struct SigningView: View {
                 }
             }
             .interactiveDismissDisabled(isRunning)
+            // Apple may ask for a 2FA code while profiles are being fetched.
+            .sheet(item: $appleAccount.codePrompt) { TwoFactorSheet(prompt: $0) }
         }
         .installFlow(install, env: env)
         .task { await start() }
@@ -90,9 +93,9 @@ struct SigningView: View {
         } else {
             Card(padding: 6) {
                 VStack(spacing: 0) {
-                    ForEach(SigningStage.allCases, id: \.self) { stage in
+                    ForEach(flow.stages, id: \.self) { stage in
                         StageRow(stage: stage, state: state(for: stage))
-                        if stage != SigningStage.allCases.last { Divider().padding(.leading, 52) }
+                        if stage != flow.stages.last { Divider().padding(.leading, 52) }
                     }
                 }
             }

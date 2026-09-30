@@ -59,8 +59,12 @@ UI не знает, как именно подписывается и стави
 
 **SideStore.** Используется официальная схема из SideStore 0.6.2+ (PR SideStore#959): `sidestore://certificate?callback_template=…`, SideStore спрашивает разрешение и возвращает `orbit://sidestore-certificate?cert=…&password=…`. SideStore отдаёт только сертификат, поэтому после возврата приложение просит выбрать .mobileprovision (или берёт уже импортированный подходящий). Если SideStore не установлен — показывается ручной путь через файлы / «Открыть в…».
 
+**Apple ID (бесплатный аккаунт).** «Настройки → Apple ID»: вход по Apple ID и паролю (+ код 2FA) через [SideSign](https://github.com/SideStore/SideSign) — ту же библиотеку, что у SideStore. Сертификат, полученный из SideStore без профиля, помечается «профили через Apple ID»: при каждой подписи Orbit регистрирует устройство (UDID из pairing-файла — его можно получить из SideStore в «Настройки → Подключение»), создаёт App ID `<bundle id>.<Team ID>` (и для расширений) и скачивает свежий профиль. Ограничения Apple для бесплатных аккаунтов: 10 App ID за 7 дней, подпись на 7 дней. Пароль уходит только Apple (SRP) и хранится в Связке ключей; anisette-сервер (по умолчанию `ani.sidestore.io`) выдаёт только заголовки устройства.
+
 **Устройство.** UDID обычному приложению недоступен и не запрашивается. Показывается только из pairing-файла, который пользователь импортировал сам, — и проверяется, есть ли устройство в выбранном профиле.
 
-## Лицензии
+## Лицензия
 
-zsign — MIT, ZIPFoundation — MIT, OpenSSL — Apache 2.0, zlib/minizip — zlib License. Список виден в «Настройки → Разработчик → Лицензии».
+Orbit распространяется под **GNU AGPL-3.0** (см. `LICENSE`): он использует SideSign (GPL-3.0) и его зависимости AnisetteKit, GSACryptoKit, CodeSignKit (AGPL-3.0).
+
+Прочие компоненты: zsign — MIT, ZIPFoundation — MIT, OpenSSL — Apache 2.0, zlib/minizip — zlib License, swift-crypto — Apache 2.0, libdeflate — MIT, Unicorn Engine — GPL-2.0. Список виден в «Настройки → Разработчик → Лицензии».

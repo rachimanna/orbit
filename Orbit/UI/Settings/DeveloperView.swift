@@ -57,6 +57,13 @@ struct LicensesView: View {
         ("OpenSSL", "Apache 2.0", "https://github.com/openssl/openssl"),
         ("zlib", "zlib License", "https://zlib.net"),
         ("minizip", "zlib License", "https://github.com/madler/zlib/tree/master/contrib/minizip"),
+        ("SideSign", "GPL-3.0", "https://github.com/SideStore/SideSign"),
+        ("AnisetteKit", "AGPL-3.0", "https://github.com/mahee96/AnisetteKit"),
+        ("GSACryptoKit", "AGPL-3.0", "https://github.com/mahee96/GSACryptoKit"),
+        ("CodeSignKit", "AGPL-3.0", "https://github.com/mahee96/CodeSignKit"),
+        ("swift-crypto", "Apache 2.0", "https://github.com/apple/swift-crypto"),
+        ("libdeflate", "MIT", "https://github.com/SideStore/libdeflate"),
+        ("Unicorn Engine", "GPL-2.0", "https://github.com/unicorn-engine/unicorn"),
     ]
     var body: some View {
         List(licenses, id: \.0) { l in
@@ -64,6 +71,12 @@ struct LicensesView: View {
                 LabeledContent(l.0, value: l.1)
             }
             .foregroundStyle(.primary)
+        }
+        .safeAreaInset(edge: .top) {
+            Link(destination: URL(string: "https://www.gnu.org/licenses/agpl-3.0.html")!) {
+                Text("\(Brand.name) распространяется под GNU AGPL-3.0. Исходный код открыт.")
+                    .font(.footnote).foregroundStyle(.secondary).padding(.horizontal).padding(.top, 8)
+            }
         }
         .navigationTitle("Лицензии")
     }

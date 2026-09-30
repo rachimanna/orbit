@@ -57,10 +57,14 @@ struct AppDetailView: View {
                         LabeledContent("Действует до") {
                             Text(c.expiresAt.shortDate).foregroundStyle(c.status.color)
                         }
-                        if !c.profile.allows(bundleID: item.bundleID) {
-                            Label("Профиль не подходит к этому Bundle ID — он будет заменён на \(c.profile.bundlePattern.replacingOccurrences(of: "*", with: item.bundleID))",
+                        if let profile = c.profile, !profile.allows(bundleID: item.bundleID) {
+                            Label("Профиль не подходит к этому Bundle ID — он будет заменён на \(profile.bundlePattern.replacingOccurrences(of: "*", with: item.bundleID))",
                                   systemImage: "info.circle")
                                 .font(.footnote).foregroundStyle(.orange)
+                        } else if c.usesAppleAccount {
+                            Label("Профиль будет получен через Apple ID. Bundle ID станет \(item.bundleID).\(c.teamID)",
+                                  systemImage: "person.badge.key")
+                                .font(.footnote).foregroundStyle(.secondary)
                         }
                     }
                 }

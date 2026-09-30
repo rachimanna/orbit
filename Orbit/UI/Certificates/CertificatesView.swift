@@ -94,7 +94,8 @@ struct CertificateRow: View {
             Image(systemName: cert.status.symbol).font(.title2).foregroundStyle(cert.status.color).frame(width: 32)
             VStack(alignment: .leading, spacing: 3) {
                 Text(cert.displayName).font(.body.weight(.medium)).lineLimit(1)
-                Text("\(cert.teamName) · до \(cert.expiresAt.shortDate)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text("\(cert.teamName) · до \(cert.expiresAt.shortDate)\(cert.usesAppleAccount ? " · профили через Apple ID" : "")")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
             if selected { Image(systemName: "checkmark").font(.body.weight(.semibold)).foregroundStyle(Brand.accent) }
@@ -106,6 +107,7 @@ struct CertificateRow: View {
 struct CertificateDetailView: View {
     let id: UUID
     @EnvironmentObject private var certificates: CertificateStore
+    @EnvironmentObject private var appleAccount: AppleAccountService
     @Environment(\.dismiss) private var dismiss
     @State private var confirmDelete = false
 
@@ -128,17 +130,27 @@ struct CertificateDetailView: View {
                     LabeledContent("Источник", value: c.source == .sideStore ? "SideStore" : "Файл")
                     LabeledContent("Добавлен", value: c.addedAt.shortDate)
                 }
-                Section("Provisioning Profile") {
-                    LabeledContent("Название", value: c.profile.name)
-                    LabeledContent("App ID") { Text(c.profile.bundlePattern).textSelection(.enabled) }
-                    LabeledContent("Тип", value: c.profile.isDevelopment ? "Development" : "Distribution")
-                    LabeledContent("Устройства", value: c.profile.provisionsAllDevices ? "Все (Enterprise)" : "\(c.profile.provisionedDeviceCount ?? 0)")
-                    LabeledContent("Истекает", value: c.profile.expiresAt.shortDate)
-                    LabeledContent("UUID") { Text(c.profile.uuid).font(.caption.monospaced()).textSelection(.enabled) }
-                }
-                if !c.profile.entitlementKeys.isEmpty {
-                    Section("Entitlements") {
-                        ForEach(c.profile.entitlementKeys, id: \.self) { Text($0).font(.caption.monospaced()) }
+                if let profile = c.profile {
+                    Section("Provisioning Profile") {
+                        LabeledContent("Название", value: profile.name)
+                        LabeledContent("App ID") { Text(profile.bundlePattern).textSelection(.enabled) }
+                        LabeledContent("Тип", value: profile.isDevelopment ? "Development" : "Distribution")
+                        LabeledContent("Устройства", value: profile.provisionsAllDevices ? "Все (Enterprise)" : "\(profile.provisionedDeviceCount ?? 0)")
+                        LabeledContent("Истекает", value: profile.expiresAt.shortDate)
+                        LabeledContent("UUID") { Text(profile.uuid).font(.caption.monospaced()).textSelection(.enabled) }
+                    }
+                    if !profile.entitlementKeys.isEmpty {
+                        Section("Entitlements") {
+                            ForEach(profile.entitlementKeys, id: \.self) { Text($0).font(.caption.monospaced()) }
+                        }
+                    }
+                } else {
+                    Section {
+                        NavigationLink { AppleAccountView() } label: {
+                            LabeledContent("Apple ID", value: appleAccount.account?.appleID ?? "Не выполнен вход")
+                        }
+                    } header: { Text("Provisioning Profile") } footer: {
+                        Text("Профиль запрашивается у Apple для каждого приложения при подписи — как в SideStore.")
                     }
                 }
                 Section {
@@ -297,12 +309,15 @@ struct SideStoreFallbackSheet: View {
     }
 }
 
-/// SideStore returns only the certificate; this sheet collects the matching profile.
+/// SideStore returns only the certificate; profiles come from the Apple ID (free accounts)
+/// or from a .mobileprovision file.
 struct SideStoreProfileSheet: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var certificates: CertificateStore
+    @EnvironmentObject private var appleAccount: AppleAccountService
     @Environment(\.dismiss) private var dismiss
     @State private var picking = false
+    @State private var signingIn = false
     @State private var error: UserFacingError?
 
     var body: some View {
@@ -310,13 +325,27 @@ struct SideStoreProfileSheet: View {
             VStack(spacing: 20) {
                 Image(systemName: "checkmark.seal.fill").font(.system(size: 54)).foregroundStyle(.green)
                 Text("Сертификат получен из SideStore").font(.title3.weight(.semibold))
-                Text("Чтобы подписывать приложения, добавьте provisioning profile, выпущенный для этого сертификата.")
+                Text("Осталось указать, откуда брать provisioning profile. С бесплатным Apple ID \(Brand.name) получает его у Apple для каждого приложения — как SideStore.")
                     .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 if let error { ErrorCard(error: error) }
                 Spacer()
-                Button("Выбрать .mobileprovision") { picking = true }.buttonStyle(PrimaryButtonStyle())
+                Button(appleAccount.isSignedIn ? "Профили через Apple ID" : "Войти в Apple ID") {
+                    if appleAccount.isSignedIn { completeWithAppleID() } else { signingIn = true }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                Button("Выбрать .mobileprovision") { picking = true }.buttonStyle(SecondaryButtonStyle())
             }
             .padding(24)
+            .sheet(isPresented: $signingIn) {
+                NavigationStack {
+                    List { AppleSignInForm { signingIn = false; completeWithAppleID() } }
+                        .navigationTitle("Apple ID")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { signingIn = false } } }
+                }
+                // 2FA can be requested while this sheet is up.
+                .sheet(item: $appleAccount.codePrompt) { TwoFactorSheet(prompt: $0) }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Отмена") { certificates.pendingSideStoreP12 = nil; dismiss() }
@@ -331,5 +360,13 @@ struct SideStoreProfileSheet: View {
                 } catch { self.error = UserFacingError.wrap(error) }
             }
         }
+    }
+
+    private func completeWithAppleID() {
+        do {
+            try certificates.completeSideStoreImport(profile: nil)
+            env.banner = Banner(title: "Сертификат импортирован", subtitle: "Профили — через Apple ID", kind: .success)
+            dismiss()
+        } catch { self.error = UserFacingError.wrap(error) }
     }
 }

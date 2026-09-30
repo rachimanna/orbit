@@ -12,6 +12,7 @@ struct OrbitApp: App {
                 .environmentObject(env.certificates)
                 .environmentObject(env.settings)
                 .environmentObject(env.installer.tunnel)
+                .environmentObject(env.appleAccount)
                 .tint(Brand.accent)
                 .onOpenURL { env.handle(url: $0) }
         }
@@ -27,6 +28,7 @@ final class AppEnvironment: ObservableObject {
     let signer: AppSigner
     let installer: InstallCoordinator
     let sideStore = SideStoreBridge()
+    let appleAccount = AppleAccountService()
 
     @Published var selectedTab: RootTab = .home
     @Published var banner: Banner?
@@ -50,9 +52,16 @@ final class AppEnvironment: ObservableObject {
             do {
                 if sideStore.isCallback(url) {
                     let payload = try sideStore.parseCallback(url)
-                    try await certificates.importFromSideStore(payload)
+                    try await certificates.importFromSideStore(payload, appleAccount: appleAccount.isSignedIn)
                     selectedTab = .certificates
-                    banner = Banner(title: "Сертификат импортирован", subtitle: "Из SideStore", kind: .success)
+                    banner = Banner(title: "Сертификат импортирован",
+                                    subtitle: appleAccount.isSignedIn ? "Профили — через Apple ID" : "Из SideStore",
+                                    kind: .success)
+                    return
+                }
+                if sideStore.isPairingCallback(url) {
+                    try installer.tunnel.importPairingData(try sideStore.parsePairingCallback(url))
+                    banner = Banner(title: "Pairing-файл получен", subtitle: "Из SideStore", kind: .success)
                     return
                 }
                 switch url.pathExtension.lowercased() {

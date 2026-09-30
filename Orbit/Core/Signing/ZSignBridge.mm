@@ -20,7 +20,7 @@ static NSString *const ZSignErrorDomain = @"ZSignBridge";
 + (BOOL)signAppAtPath:(NSString *)appPath
               p12Path:(NSString *)p12Path
              password:(NSString *)password
-          profilePath:(NSString *)profilePath
+         profilePaths:(NSArray<NSString *> *)profilePaths
              bundleID:(NSString *)bundleID
           displayName:(NSString *)displayName
                 error:(NSError **)error
@@ -34,10 +34,18 @@ static NSString *const ZSignErrorDomain = @"ZSignBridge";
 
     ZLog::SetLogLever(ZLog::E_ERROR);
 
-    ZSignAsset asset;
+    // One asset per profile; zsign picks the one matching each (sub)bundle's ID.
     // A .p12 is accepted as the "private key" file; the certificate is read from it.
-    bool ok = asset.Init("", p12Path.UTF8String, profilePath.UTF8String, "",
-                         password.UTF8String, false, false, false);
+    std::list<ZSignAsset> assets;
+    bool ok = profilePaths.count > 0;
+    for (NSString *profilePath in profilePaths) {
+        assets.emplace_back();
+        if (!assets.back().Init("", p12Path.UTF8String, profilePath.UTF8String, "",
+                                password.UTF8String, false, false, false)) {
+            ok = false;
+            break;
+        }
+    }
     if (!ok) {
         [lock unlock];
         if (error) *error = [NSError errorWithDomain:ZSignErrorDomain code:1
@@ -48,7 +56,7 @@ static NSString *const ZSignErrorDomain = @"ZSignBridge";
     ZBundle bundle;
     std::vector<std::string> noDylibs;
     std::vector<std::string> noRemovals;
-    ok = bundle.SignFolder(&asset,
+    ok = bundle.SignFolder(&assets,
                            appPath.UTF8String,
                            bundleID ? bundleID.UTF8String : "",
                            "",                                   // keep version

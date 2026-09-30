@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var certificates: CertificateStore
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var appleAccount: AppleAccountService
 
     var body: some View {
         NavigationStack {
@@ -21,6 +22,14 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink { AppleAccountView() } label: {
+                        HStack {
+                            SettingsLabel(title: "Apple ID", symbol: "person.crop.circle.fill", color: .blue)
+                            Spacer()
+                            Text(appleAccount.account?.appleID ?? "Не выполнен вход")
+                                .foregroundStyle(.secondary).font(.subheadline).lineLimit(1)
+                        }
+                    }
                     NavigationLink { CertificateSettingsView() } label: {
                         HStack {
                             SettingsLabel(title: "Сертификаты", symbol: "lock.shield.fill", color: .green)
@@ -75,7 +84,11 @@ struct CertificateSettingsView: View {
                 if let c = certificates.selected {
                     CertificateRow(cert: c, selected: false)
                     LabeledContent("Истекает") { Text(c.expiresAt.relativeExpiry).foregroundStyle(c.status.color) }
-                    LabeledContent("Профиль истекает", value: c.profile.expiresAt.shortDate)
+                    if let profile = c.profile {
+                        LabeledContent("Профиль истекает", value: profile.expiresAt.shortDate)
+                    } else {
+                        LabeledContent("Профили", value: "Через Apple ID")
+                    }
                 } else {
                     Text("Сертификат не добавлен").foregroundStyle(.secondary)
                 }
@@ -113,9 +126,9 @@ struct DeviceSettingsView: View {
             Section {
                 if let udid = tunnel.pairing?.udid {
                     LabeledContent("UDID") { Text(udid).font(.caption.monospaced()).textSelection(.enabled) }
-                    if let c = certificates.selected {
-                        let included = c.profile.provisionsAllDevices || profileContains(udid, c)
-                        LabeledContent("В профиле «\(c.profile.name)»") {
+                    if let c = certificates.selected, let profile = c.profile {
+                        let included = profile.provisionsAllDevices || profileContains(udid, c)
+                        LabeledContent("В профиле «\(profile.name)»") {
                             Label(included ? "Да" : "Нет", systemImage: included ? "checkmark.circle.fill" : "xmark.circle.fill")
                                 .foregroundStyle(included ? .green : .red)
                         }
@@ -131,7 +144,7 @@ struct DeviceSettingsView: View {
     }
 
     private func profileContains(_ udid: String, _ c: SigningCertificate) -> Bool {
-        guard let data = try? Data(contentsOf: certificates.profileURL(c)),
+        guard let url = certificates.profileURL(c), let data = try? Data(contentsOf: url),
               let start = data.range(of: Data("<?xml".utf8)),
               let end = data.range(of: Data("</plist>".utf8)),
               let plist = try? PropertyListSerialization.propertyList(from: data[start.lowerBound..<end.upperBound], format: nil) as? [String: Any],
@@ -143,6 +156,7 @@ struct DeviceSettingsView: View {
 // MARK: - Подключение
 
 struct ConnectionSettingsView: View {
+    @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var tunnel: TunnelInstaller
     @State private var importing = false
@@ -191,12 +205,19 @@ struct ConnectionSettingsView: View {
                 if let p = tunnel.pairing {
                     LabeledContent("Pairing-файл", value: "Импортирован")
                     if let h = p.hostID { LabeledContent("Host ID") { Text(h).font(.caption.monospaced()).lineLimit(1) } }
+                    if let udid = p.udid { LabeledContent("UDID") { Text(udid).font(.caption.monospaced()).lineLimit(1).truncationMode(.middle) } }
                     Button("Удалить pairing-файл", role: .destructive) { tunnel.removePairingFile() }
                 } else {
+                    Button("Получить из SideStore") {
+                        Task {
+                            do { try await env.sideStore.requestPairingFile() }
+                            catch { self.error = UserFacingError.wrap(error) }
+                        }
+                    }
                     Button("Импортировать pairing-файл") { importing = true }
                 }
             } header: { Text("Pairing") } footer: {
-                Text("Pairing-файл создаётся на компьютере (например, в Impactor или jitterbugpair) и нужен для прямой установки.")
+                Text("Pairing-файл нужен для прямой установки и для регистрации устройства через Apple ID (в нём UDID). SideStore 0.6.2+ отдаёт его по запросу, также его создают Impactor или jitterbugpair.")
             }
 
             Section("Дополнительно") {

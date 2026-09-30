@@ -30,6 +30,10 @@ packages:
   OpenSSL:
     url: https://github.com/krzyzanowskim/OpenSSL
     from: "3.3.2000"
+  # Apple ID sign-in, 2FA and provisioning profiles (GPL-3.0; pulls AGPL-3.0 deps).
+  SideSign:
+    url: https://github.com/SideStore/SideSign
+    revision: 6b68651697f99791ef85404b7aea1891a26a285d
 
 targets:
   Orbit:
@@ -40,6 +44,8 @@ targets:
     dependencies:
       - package: ZIPFoundation
       - package: OpenSSL
+      - package: SideSign
+        product: SideSign
       - sdk: libc++.tbd
     settings:
       base:

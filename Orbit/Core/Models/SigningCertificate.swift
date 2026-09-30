@@ -1,6 +1,7 @@
 import Foundation
 
-/// A signing identity: a .p12 (certificate + private key) paired with a .mobileprovision.
+/// A signing identity: a .p12 (certificate + private key) paired with a .mobileprovision,
+/// or — without a profile — one whose profiles are fetched per app through the Apple ID.
 /// The .p12 password lives in the Keychain, never in this struct.
 struct SigningCertificate: Identifiable, Codable, Hashable {
     let id: UUID
@@ -8,18 +9,21 @@ struct SigningCertificate: Identifiable, Codable, Hashable {
     var teamID: String
     var teamName: String
     var certificateExpiresAt: Date?  // from the X.509 NotAfter field
-    var profile: ProvisioningProfile
+    /// nil = profiles come from the signed-in Apple ID, one per app.
+    var profile: ProvisioningProfile?
     var source: Source
     var addedAt: Date
 
     var p12Path: String
-    var profilePath: String
+    var profilePath: String?
+
+    var usesAppleAccount: Bool { profile == nil }
 
     enum Source: String, Codable { case manual, sideStore }
 
-    /// The effective expiry for signed apps.
+    /// The effective expiry for signed apps (Apple ID profiles are fresh on every signing).
     var expiresAt: Date {
-        [certificateExpiresAt, profile.expiresAt].compactMap { $0 }.min() ?? profile.expiresAt
+        [certificateExpiresAt, profile?.expiresAt].compactMap { $0 }.min() ?? .distantPast
     }
 
     enum Status: Equatable {

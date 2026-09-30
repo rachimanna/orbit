@@ -54,7 +54,10 @@ final class TunnelInstaller: ObservableObject {
     func importPairingFile(_ url: URL) throws {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        let data = try Data(contentsOf: url)
+        try importPairingData(Data(contentsOf: url))
+    }
+
+    func importPairingData(_ data: Data) throws {
         guard (try? PropertyListSerialization.propertyList(from: data, format: nil)) is [String: Any] else {
             throw UserFacingError(title: "Это не pairing-файл",
                                   hint: "Нужен файл .mobiledevicepairing или .plist, созданный, например, в Impactor или jitterbugpair.")

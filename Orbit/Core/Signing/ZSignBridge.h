@@ -9,11 +9,13 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)isAvailable;
 
 /// Re-signs an unpacked .app folder in place.
+/// @param profilePaths  main app profile first; extensions get the profile whose
+///                      application-identifier matches their bundle ID, else the first.
 /// @param bundleID  nil keeps the original bundle identifier.
 + (BOOL)signAppAtPath:(NSString *)appPath
               p12Path:(NSString *)p12Path
              password:(NSString *)password
-          profilePath:(NSString *)profilePath
+         profilePaths:(NSArray<NSString *> *)profilePaths
              bundleID:(nullable NSString *)bundleID
           displayName:(nullable NSString *)displayName
                 error:(NSError **)error;
