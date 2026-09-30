@@ -10,7 +10,7 @@ permissions:
 
 env:
   IDEVICE_REV: d32c8189c51c2789496b0768039419c3705498c3
-  IDEVICE_FEATURES: ring,tcp,afc,installation_proxy
+  IDEVICE_FEATURES: ring,tcp,afc,installation_proxy,heartbeat
 
 jobs:
   build:
