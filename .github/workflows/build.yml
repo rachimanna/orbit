@@ -33,7 +33,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: deps/idevice
-          key: idevice-${{ env.IDEVICE_REV }}-${{ env.IDEVICE_FEATURES }}-ios16-v1
+          key: idevice-${{ env.IDEVICE_REV }}-${{ hashFiles('.github/workflows/build.yml') }}-ios16-v1
 
       - name: Build idevice for iOS
         if: steps.idevice-cache.outputs.cache-hit != 'true'
