@@ -37,14 +37,27 @@ enum IDeviceInstall {
         defer { idevice_provider_free(provider) }
 
         // 1. Upload
+        let remotePath = "/PublicStaging/\(UUID().uuidString).ipa"
         var afc: OpaquePointer?
         try check(afc_client_connect(provider, &afc), step: "Подключение к AFC")
         defer { afc_client_free(afc) }
 
-        idevice_error_free(afc_make_directory(afc, "/PublicStaging"))   // usually exists already
-        let remotePath = "/PublicStaging/\(UUID().uuidString).ipa"
         var file: OpaquePointer?
-        try check(afc_file_open(afc, remotePath, AfcWrOnly, &file), step: "Создание файла на устройстве")
+        if let firstError = afc_file_open(afc, remotePath, AfcWrOnly, &file) {
+            // /PublicStaging may be missing, or afcd may have dropped the connection.
+            // Create the folder on its own connection (afcd may close it afterwards),
+            // then retry on a fresh one.
+            idevice_error_free(firstError)
+            afc_client_free(afc)
+            afc = nil
+            var mkdirClient: OpaquePointer?
+            if afc_client_connect(provider, &mkdirClient) == nil {
+                idevice_error_free(afc_make_directory(mkdirClient, "/PublicStaging"))
+                afc_client_free(mkdirClient)
+            }
+            try check(afc_client_connect(provider, &afc), step: "Подключение к AFC")
+            try check(afc_file_open(afc, remotePath, AfcWrOnly, &file), step: "Создание файла на устройстве")
+        }
 
         let reader: FileHandle
         do { reader = try FileHandle(forReadingFrom: ipa) } catch {
