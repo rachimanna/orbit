@@ -37,18 +37,24 @@ struct HomeView: View {
                 .frame(width: 56, height: 56)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                Text(greeting).font(.title3.weight(.semibold))
+                // Re-evaluated every minute, so the greeting follows the clock while the app stays open.
+                TimelineView(.everyMinute) { context in
+                    Text(Self.greeting(at: context.date)).font(.title3.weight(.semibold))
+                }
                 Text(Brand.tagline).font(.subheadline).foregroundStyle(.secondary)
             }
         }
         .padding(.top, 4)
     }
 
-    private var greeting: String {
-        switch Calendar.current.component(.hour, from: Date()) {
+    /// Greeting for the device's local time: 5–12 утро, 12–14 обед, 14–18 день, 18–23 вечер, 23–5 ночь.
+    static func greeting(at date: Date) -> String {
+        switch Calendar.current.component(.hour, from: date) {
         case 5..<12: "Доброе утро"
-        case 12..<18: "Добрый день"
-        default: "Добрый вечер"
+        case 12..<14: "Приятного обеда"
+        case 14..<18: "Добрый день"
+        case 18..<23: "Добрый вечер"
+        default: "Доброй ночи"
         }
     }
 
