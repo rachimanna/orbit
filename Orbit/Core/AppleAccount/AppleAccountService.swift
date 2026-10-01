@@ -32,12 +32,23 @@ final class AppleAccountService: ObservableObject {
         var profiles: [Data]
     }
 
+    /// Free accounts may hold 10 App IDs; each expires 7 days after creation.
+    nonisolated static let freeAppIDLimit = 10
+
+    struct AppIDUsage: Equatable {
+        var used: Int
+        var limit: Int?            // nil = paid team, no weekly limit
+        var nextFree: Date?
+        var available: Int? { limit.map { max(0, $0 - used) } }
+    }
+
     nonisolated static let defaultAnisetteServer = "https://ani.sidestore.io"
     private static let xcodeVersion = "26.0 (26A242)"
 
     @Published private(set) var account: StoredAccount?
     @Published private(set) var isWorking = false
     @Published var codePrompt: CodePrompt?
+    @Published private(set) var appIDUsage: AppIDUsage?
     @Published var anisetteServer: String {
         didSet { UserDefaults.standard.set(anisetteServer, forKey: Keys.anisetteServer) }
     }
@@ -144,11 +155,24 @@ final class AppleAccountService: ObservableObject {
                 // Free App IDs are global, so the original ID is almost always taken by its developer.
                 let target = "\(bundleID).\(team.identifier)"
                 var existing = try await self.portal.fetchAppIDs(for: team, session: session)
+                let usage = Self.usage(of: existing, team: team)
+                self.appIDUsage = usage
 
                 var profiles: [Data] = []
                 // Extensions keep their suffix: com.app.widget → com.app.TEAMID.widget (zsign renames them the same way).
                 let bundles: [(String, String)] = [(target, appName)] + extensionBundleIDs.map { ext in
                     (target + ext.dropFirst(bundleID.count), "\(appName) \(ext.split(separator: ".").last ?? "")")
+                }
+
+                // Check the weekly quota up front, so a big app doesn't burn App IDs and then fail halfway.
+                func exists(_ id: String) -> Bool {
+                    existing.contains { $0.bundleIdentifier.caseInsensitiveCompare(id) == .orderedSame }
+                }
+                let missing = bundles.filter { !exists($0.0) }.count
+                if let available = usage.available, missing > available {
+                    throw Self.quotaError(appName: appName, missing: missing, available: available,
+                                          extensions: extensionBundleIDs.count,
+                                          mainMissing: exists(target) ? 0 : 1, nextFree: usage.nextFree)
                 }
                 for (identifier, name) in bundles {
                     let appID: AppID
@@ -163,11 +187,46 @@ final class AppleAccountService: ObservableObject {
                                                                                     team: team, session: session)
                     profiles.append(profile.data)
                 }
+                self.appIDUsage = Self.usage(of: existing, team: team)
                 return Provisioned(bundleID: target, profiles: profiles)
             }
         } catch {
             throw Self.userFacing(error)
         }
+    }
+
+    /// Refreshes `appIDUsage` (shown in «Настройки → Apple ID»).
+    func refreshAppIDUsage() async {
+        let usage = try? await withPortal { session, team in
+            let appIDs = try await self.portal.fetchAppIDs(for: team, session: session)
+            return Self.usage(of: appIDs, team: team)
+        }
+        if let usage { appIDUsage = usage }
+    }
+
+    private static func usage(of appIDs: [AppID], team: Team) -> AppIDUsage {
+        guard !team.isPaid else { return AppIDUsage(used: appIDs.count, limit: nil, nextFree: nil) }
+        let now = Date()
+        let active = appIDs.filter { ($0.expirationDate ?? .distantFuture) > now }
+        return AppIDUsage(used: active.count, limit: freeAppIDLimit,
+                          nextFree: active.compactMap(\.expirationDate).min())
+    }
+
+    private static func quotaError(appName: String, missing: Int, available: Int, extensions: Int,
+                                   mainMissing: Int, nextFree: Date?) -> UserFacingError {
+        var hint = "Для «\(appName)» нужно новых App ID: \(missing)"
+        if extensions > 0 { hint += " (приложение и расширений: \(extensions))" }
+        hint += ", а свободно \(available) из \(freeAppIDLimit). Бесплатный Apple ID даёт 10 App ID на 7 дней."
+        if let nextFree { hint += " Следующий освободится \(nextFree.formatted(date: .abbreviated, time: .shortened))." }
+        let canSkipExtensions = extensions > 0 && mainMissing <= available
+        if canSkipExtensions {
+            hint += mainMissing == 0
+                ? " Без расширений (виджетов, уведомлений и т. п.) новые App ID не нужны."
+                : " Без расширений (виджетов, уведомлений и т. п.) нужен всего 1."
+        }
+        var error = UserFacingError(title: "Не хватает App ID", hint: hint)
+        error.suggestsRemovingExtensions = canSkipExtensions
+        return error
     }
 
     private func registerDeviceIfNeeded(udid: String, type: DeviceType, team: Team, session: Session) async throws {
@@ -275,7 +334,8 @@ final class AppleAccountService: ObservableObject {
             return UserFacingError(title: "Вход отменён", hint: "Код подтверждения не был введён.")
         case DeveloperPortalError.incorrectVerificationCode:
             return UserFacingError(title: "Неверный код подтверждения", hint: "Попробуйте войти ещё раз.", details: details)
-        case DeveloperPortalError.maximumAppIDLimitReached:
+        case DeveloperPortalError.maximumAppIDLimitReached,
+             ServerError.underlyingError(9120, _):
             return UserFacingError(title: "Лимит App ID исчерпан",
                                    hint: "Бесплатный Apple ID позволяет создать 10 App ID за 7 дней. Подождите, пока старые истекут.",
                                    details: details)

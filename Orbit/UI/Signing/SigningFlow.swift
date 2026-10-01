@@ -16,7 +16,7 @@ final class SigningFlow: ObservableObject {
     /// Stages this run goes through (provisioning only with Apple ID profiles).
     @Published private(set) var stages = SigningStage.allCases.filter { $0 != .provisioning }
 
-    func run(item: AppItem, env: AppEnvironment) async -> AppItem? {
+    func run(item: AppItem, env: AppEnvironment, removeExtensions: Bool = false) async -> AppItem? {
         done = []; error = nil
         guard let cert = env.certificates.selected else { return fail(.noCertificate) }
 
@@ -46,7 +46,8 @@ final class SigningFlow: ObservableObject {
             profile: profile,
             output: files.appFolder(item.id).appendingPathComponent("signed.ipa"),
             workDir: files.workFolder(),
-            cleanWorkDir: env.settings.cleanTempAfterSigning)
+            cleanWorkDir: env.settings.cleanTempAfterSigning,
+            removeExtensions: removeExtensions || env.settings.removeExtensions)
 
         guard FileManager.default.fileExists(atPath: request.ipa.path) else {
             return fail(.init(title: "Исходный IPA удалён",

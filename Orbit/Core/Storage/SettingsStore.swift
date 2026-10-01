@@ -46,6 +46,8 @@ final class SettingsStore: ObservableObject {
     @Published var confirmBeforeInstall: Bool { didSet { d.set(confirmBeforeInstall, forKey: "confirmInstall") } }
     @Published var cleanTempAfterSigning: Bool { didSet { d.set(cleanTempAfterSigning, forKey: "cleanTemp") } }
     @Published var deleteIPAAfterInstall: Bool { didSet { d.set(deleteIPAAfterInstall, forKey: "deleteIPA") } }
+    /// Sign without app extensions to save App IDs (free Apple ID: 10 per 7 days).
+    @Published var removeExtensions: Bool { didSet { d.set(removeExtensions, forKey: "removeExtensions") } }
 
     // Connection (pairing / tunnel)
     @Published var deviceHost: String { didSet { d.set(deviceHost, forKey: "host") } }
@@ -65,6 +67,7 @@ final class SettingsStore: ObservableObject {
         confirmBeforeInstall = d.object(forKey: "confirmInstall") as? Bool ?? true
         cleanTempAfterSigning = d.object(forKey: "cleanTemp") as? Bool ?? true
         deleteIPAAfterInstall = d.bool(forKey: "deleteIPA")
+        removeExtensions = d.bool(forKey: "removeExtensions")
         // 10.7.0.1 is the device address LocalDevVPN/StosVPN route back to; 62078 = lockdownd.
         deviceHost = d.string(forKey: "host") ?? "10.7.0.1"
         devicePort = d.object(forKey: "port") as? Int ?? 62078

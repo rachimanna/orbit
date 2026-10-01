@@ -5,6 +5,7 @@ import SideSign
 struct AppleAccountView: View {
     @EnvironmentObject private var account: AppleAccountService
     @EnvironmentObject private var tunnel: TunnelInstaller
+    @EnvironmentObject private var settings: SettingsStore
     @State private var confirmSignOut = false
 
     var body: some View {
@@ -19,6 +20,28 @@ struct AppleAccountView: View {
                 } header: { Text("Аккаунт") } footer: {
                     Text("Для каждого подписываемого приложения \(Brand.name) регистрирует App ID и получает свежий профиль. Бесплатный аккаунт: до 10 App ID за 7 дней, подпись действует 7 дней.")
                 }
+                Section {
+                    if let usage = account.appIDUsage {
+                        if let limit = usage.limit {
+                            LabeledContent("App ID занято") {
+                                Text("\(usage.used) из \(limit)")
+                                    .foregroundStyle(usage.available == 0 ? .red : .secondary)
+                            }
+                            if let next = usage.nextFree {
+                                LabeledContent("Следующий освободится",
+                                               value: next.formatted(date: .abbreviated, time: .shortened))
+                            }
+                        } else {
+                            LabeledContent("App ID", value: "\(usage.used), без недельного лимита")
+                        }
+                    } else {
+                        LabeledContent("App ID") { ProgressView() }
+                    }
+                    Toggle("Подписывать без расширений", isOn: $settings.removeExtensions)
+                } header: { Text("App ID") } footer: {
+                    Text("Каждое приложение и каждое его расширение (виджет, уведомления, «Поделиться») занимают отдельный App ID. Без расширений приложению нужен один App ID, но виджеты и подобные функции работать не будут.")
+                }
+                .task { await account.refreshAppIDUsage() }
                 Section {
                     Button("Выйти", role: .destructive) { confirmSignOut = true }
                 }

@@ -128,7 +128,13 @@ struct SigningView: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
         case .failed:
             VStack(spacing: 10) {
-                Button("Повторить") { Task { await start() } }.buttonStyle(PrimaryButtonStyle())
+                if flow.error?.suggestsRemovingExtensions == true {
+                    Button("Подписать без расширений") { Task { await start(removeExtensions: true) } }
+                        .buttonStyle(PrimaryButtonStyle())
+                    Button("Повторить") { Task { await start() } }.buttonStyle(SecondaryButtonStyle())
+                } else {
+                    Button("Повторить") { Task { await start() } }.buttonStyle(PrimaryButtonStyle())
+                }
                 Button("Открыть сертификаты") { dismiss(); env.selectedTab = .certificates }
                     .buttonStyle(SecondaryButtonStyle())
             }
@@ -137,8 +143,8 @@ struct SigningView: View {
         }
     }
 
-    private func start() async {
-        signedItem = await flow.run(item: item, env: env)
+    private func start(removeExtensions: Bool = false) async {
+        signedItem = await flow.run(item: item, env: env, removeExtensions: removeExtensions)
         if let s = signedItem, settings.autoInstallAfterSigning {
             install.request(s, env: env)
         }

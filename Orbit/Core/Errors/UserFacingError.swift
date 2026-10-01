@@ -7,6 +7,8 @@ struct UserFacingError: LocalizedError, Identifiable {
     let title: String
     let hint: String
     var details: String?
+    /// Signing can succeed without app extensions (fewer App IDs) — the UI offers that.
+    var suggestsRemovingExtensions = false
 
     var errorDescription: String? { title }
     var recoverySuggestion: String? { hint }

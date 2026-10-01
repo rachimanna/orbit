@@ -36,6 +36,8 @@ struct SigningRequest {
     var output: URL
     var workDir: URL
     var cleanWorkDir: Bool
+    /// Drop app extensions (widgets, share/notification extensions…) — each needs its own App ID.
+    var removeExtensions = false
 }
 
 enum ProfileSource {
@@ -76,6 +78,11 @@ struct ZSignSigner: AppSigner {
             throw UserFacingError.invalidIPA
         }
         let appDir = payload.appendingPathComponent(appName)
+        if r.removeExtensions {
+            for folder in ["PlugIns", "Extensions"] {
+                try? fm.removeItem(at: appDir.appendingPathComponent(folder))
+            }
+        }
 
         // 2. Profiles: the imported one, or fresh ones from Apple for this exact app
         let profileURLs: [URL]
